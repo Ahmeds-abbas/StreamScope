@@ -1,9 +1,26 @@
+find_package(PkgConfig REQUIRED)
+
+pkg_check_modules(
+    GSTREAMER
+    REQUIRED
+    IMPORTED_TARGET
+    gstreamer-1.0
+)
+
 add_executable(streamscope_player
     src/main.cpp
 )
 
-target_compile_options(streamscope_player PRIVATE
-    -Wall
-    -Wextra
-    -Wpedantic
+target_link_libraries(
+    streamscope_player
+    PRIVATE
+        PkgConfig::GSTREAMER
+)
+
+target_compile_options(
+    streamscope_player
+    PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
 )
