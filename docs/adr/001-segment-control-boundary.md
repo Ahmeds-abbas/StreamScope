@@ -53,7 +53,7 @@ documented in a new ADR before moving responsibility across this boundary.
 - GStreamer plugin behavior and version differences can affect playback.
 - Precise segment instrumentation may require probes or custom GStreamer elements.
 
-## Revisit When
+## Revisit only When
 
 Reconsider this decision if StreamScope needs capabilities that GStreamer cannot
 expose or support, such as deterministic segment selection, custom download
