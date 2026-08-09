@@ -9,6 +9,13 @@ pkg_check_modules(
 
 add_executable(streamscope_player
     src/main.cpp
+    src/hls_manifest.cpp
+)
+
+target_include_directories(
+    streamscope_player
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
 target_link_libraries(

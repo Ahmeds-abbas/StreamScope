@@ -23,3 +23,9 @@ std::vector<Representation> parseMasterPlaylist(
 
     return representations;
 }
+std::string line;
+
+while (std::getline(file, line))
+{
+    std::cout << line << '\n';
+}
