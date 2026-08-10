@@ -27,54 +27,79 @@ std::vector<Representation> parseMasterPlaylist(
     {
         if (line.find("#EXT-X-STREAM-INF:") != std::string::npos)
         {
-            const std::string key = "BANDWIDTH=";
-const std::size_t start = line.find(key);
+            int bandwidth = 0;
+            int width = 0;
+            int height = 0;
 
-if (start != std::string::npos)
-{
-    const std::size_t valueStart = start + key.length();
-    const std::size_t valueEnd = line.find(',', valueStart);
+            // Parse BANDWIDTH
+            const std::string bandwidthKey = "BANDWIDTH=";
+            const std::size_t bandwidthStart =
+                line.find(bandwidthKey);
 
-    const std::string bandwidthText =
-        line.substr(valueStart, valueEnd - valueStart);
+            if (bandwidthStart != std::string::npos)
+            {
+                const std::size_t valueStart =
+                    bandwidthStart + bandwidthKey.length();
 
-    const int bandwidth = std::stoi(bandwidthText);
+                const std::size_t valueEnd =
+                    line.find(',', valueStart);
 
-    std::cout << "Parsed bandwidth: "
-              << bandwidth
-              << '\n';
-}
-            std::cout << "Found representation line:\n"
-                      << line
-                      << '\n';
-        const std::string resolutionKey = "RESOLUTION=";
-const std::size_t resolutionStart = line.find(resolutionKey);
+                const std::string bandwidthText =
+                    line.substr(
+                        valueStart,
+                        valueEnd - valueStart
+                    );
 
-if (resolutionStart != std::string::npos)
-{
-    const std::size_t valueStart =
-        resolutionStart + resolutionKey.length();
+                bandwidth = std::stoi(bandwidthText);
+            }
 
-    const std::size_t xPosition =
-        line.find('x', valueStart);
+            // Parse RESOLUTION
+            const std::string resolutionKey = "RESOLUTION=";
+            const std::size_t resolutionStart =
+                line.find(resolutionKey);
 
-    const std::size_t valueEnd =
-        line.find(',', xPosition);
+            if (resolutionStart != std::string::npos)
+            {
+                const std::size_t valueStart =
+                    resolutionStart + resolutionKey.length();
 
-    const std::string widthText =
-        line.substr(valueStart, xPosition - valueStart);
+                const std::size_t xPosition =
+                    line.find('x', valueStart);
 
-    const std::string heightText =
-        line.substr(xPosition + 1, valueEnd - xPosition - 1);
+                const std::size_t valueEnd =
+                    line.find(',', xPosition);
 
-    const int width = std::stoi(widthText);
-    const int height = std::stoi(heightText);
+                const std::string widthText =
+                    line.substr(
+                        valueStart,
+                        xPosition - valueStart
+                    );
 
-    std::cout << "Parsed resolution: "
-              << width << "x" << height << '\n';
-}
+                const std::string heightText =
+                    line.substr(
+                        xPosition + 1,
+                        valueEnd - xPosition - 1
+                    );
 
-                    }
+                width = std::stoi(widthText);
+                height = std::stoi(heightText);
+            }
+
+            // The playlist URL is the line after EXT-X-STREAM-INF
+            std::string playlistUrl;
+
+            if (std::getline(file, playlistUrl))
+            {
+                Representation rep;
+
+                rep.bandwidth = bandwidth;
+                rep.width = width;
+                rep.height = height;
+                rep.playlistUrl = playlistUrl;
+
+                representations.push_back(rep);
+            }
+        }
     }
 
     return representations;
