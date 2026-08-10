@@ -17,7 +17,15 @@ int main(int argc, char* argv[])
     const std::string streamUrl = argv[1];
 
     const auto representations =
-    parseMasterPlaylist("assets/generated/master.m3u8"); // Parse the master playlist to get the available representations
+    parseMasterPlaylist("assets/generated/master.m3u8"); 
+    for (const Representation& rep : representations)
+    {
+    std::cout
+        << rep.width << "x" << rep.height
+        << " | bandwidth: " << rep.bandwidth
+        << " | playlist: " << rep.playlistUrl
+        << '\n';
+    }
 
     GstElement* player =
         gst_element_factory_make("playbin", "streamscope-player");
