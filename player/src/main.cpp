@@ -1,6 +1,7 @@
 #include <gst/gst.h>
 #include <iostream>
 #include <string>
+#include "streamscope/hls_manifest.hpp"
 
 int main(int argc, char* argv[])
 {
@@ -14,6 +15,9 @@ int main(int argc, char* argv[])
     }
 
     const std::string streamUrl = argv[1];
+
+    const auto representations =
+    parseMasterPlaylist("assets/generated/master.m3u8"); // Parse the master playlist to get the available representations
 
     GstElement* player =
         gst_element_factory_make("playbin", "streamscope-player");
