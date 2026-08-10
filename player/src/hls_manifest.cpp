@@ -104,3 +104,55 @@ std::vector<Representation> parseMasterPlaylist(
 
     return representations;
 }
+
+std::vector<Segment> parseMediaPlaylist(
+    const std::string& filePath
+)
+{
+    std::vector<Segment> segments;
+
+    std::ifstream file(filePath);
+
+    if (!file.is_open())
+    {
+        std::cerr << "Could not open media playlist: "
+                  << filePath
+                  << '\n';
+
+        return segments;
+    }
+
+    std::string line;
+    int sequence = 0;
+
+    while (std::getline(file, line))
+    {
+        if (line.starts_with("#EXTINF:"))
+        {
+            const std::size_t colon = line.find(':');
+const std::size_t comma = line.find(',');
+
+const std::string durationText =
+    line.substr(colon + 1, comma - colon - 1);
+
+const double duration = std::stod(durationText);
+
+std::string segmentUrl;
+
+if (std::getline(file, segmentUrl))
+{
+    Segment segment;
+
+    segment.sequence = sequence;
+    segment.duration = duration;
+    segment.url = segmentUrl;
+
+    segments.push_back(segment);
+
+    sequence++;
+}
+        }
+    }
+
+    return segments;
+}
