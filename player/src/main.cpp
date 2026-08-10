@@ -27,6 +27,18 @@ int main(int argc, char* argv[])
         << '\n';
     }
 
+    const auto segments =
+    parseMediaPlaylist("assets/generated/360p/playlist.m3u8");
+
+    for (const Segment& segment : segments)
+    {
+    std::cout
+        << "Segment " << segment.sequence
+        << " | duration: " << segment.duration
+        << " | url: " << segment.url
+        << '\n';
+    }
+
     GstElement* player =
         gst_element_factory_make("playbin", "streamscope-player");
 
