@@ -11,6 +11,7 @@ add_executable(streamscope_player
     src/main.cpp
     src/hls_manifest.cpp
     src/segment_scheduler.cpp
+    src/http_downloader.cpp
 )
 
 target_include_directories(

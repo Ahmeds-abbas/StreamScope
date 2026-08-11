@@ -2,6 +2,7 @@
 #include <iostream>
 #include <string>
 #include "streamscope/hls_manifest.hpp"
+#include "streamscope/segment_scheduler.hpp"
 
 int main(int argc, char* argv[])
 {
@@ -17,26 +18,32 @@ int main(int argc, char* argv[])
     const std::string streamUrl = argv[1];
 
     const auto representations =
-    parseMasterPlaylist("assets/generated/master.m3u8"); 
-    for (const Representation& rep : representations)
-    {
-    std::cout
-        << rep.width << "x" << rep.height
-        << " | bandwidth: " << rep.bandwidth
-        << " | playlist: " << rep.playlistUrl
-        << '\n';
-    }
+    parseMasterPlaylist("assets/generated/master.m3u8");
 
-    const auto segments =
-    parseMediaPlaylist("assets/generated/360p/playlist.m3u8");
+if (representations.empty())
+{
+    std::cerr << "No representations found.\n";
+    return 1;
+}
 
-    for (const Segment& segment : segments)
+const Representation& selectedRepresentation =
+    representations.front();
+
+const std::string mediaPlaylistPath =
+    "assets/generated/" + selectedRepresentation.playlistUrl;
+
+const auto segments =
+    parseMediaPlaylist(mediaPlaylistPath);
+
+SegmentScheduler scheduler(segments);
+
+    while (const Segment* segment = scheduler.next())
     {
-    std::cout
-        << "Segment " << segment.sequence
-        << " | duration: " << segment.duration
-        << " | url: " << segment.url
-        << '\n';
+        std::cout
+            << "Scheduled segment " << segment->sequence
+            << " | duration: " << segment->duration
+            << " | url: " << segment->url
+            << '\n';
     }
 
     GstElement* player =
