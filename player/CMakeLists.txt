@@ -7,6 +7,13 @@ pkg_check_modules(
     gstreamer-1.0
 )
 
+pkg_check_modules(
+    LIBCURL
+    REQUIRED
+    IMPORTED_TARGET
+    libcurl
+)
+
 add_executable(streamscope_player
     src/main.cpp
     src/hls_manifest.cpp
@@ -24,6 +31,7 @@ target_link_libraries(
     streamscope_player
     PRIVATE
         PkgConfig::GSTREAMER
+        PkgConfig::LIBCURL
 )
 
 target_compile_options(
