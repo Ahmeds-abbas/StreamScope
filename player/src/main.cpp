@@ -3,6 +3,7 @@
 #include <string>
 #include "streamscope/hls_manifest.hpp"
 #include "streamscope/segment_scheduler.hpp"
+#include "streamscope/http_downloader.hpp"
 
 int main(int argc, char* argv[])
 {
@@ -29,6 +30,15 @@ if (representations.empty())
 const Representation& selectedRepresentation =
     representations.front();
 
+const std::size_t slashPosition =
+    selectedRepresentation.playlistUrl.find_last_of('/');
+
+const std::string representationDirectory =
+    selectedRepresentation.playlistUrl.substr(
+        0,
+        slashPosition + 1
+    );
+
 const std::string mediaPlaylistPath =
     "assets/generated/" + selectedRepresentation.playlistUrl;
 
@@ -37,14 +47,34 @@ const auto segments =
 
 SegmentScheduler scheduler(segments);
 
-    while (const Segment* segment = scheduler.next())
+while (const Segment* segment = scheduler.next())
+{
+    const std::string segmentUrl =
+        "http://127.0.0.1:8000/" +
+        representationDirectory +
+        segment->url;
+
+    const DownloadResult result =
+        downloadUrl(segmentUrl);
+
+    std::cout
+        << "Segment " << segment->sequence
+        << " | HTTP: " << result.httpStatus
+        << " | bytes: " << result.data.size()
+        << " | time: " << result.durationSeconds
+        << " | success: " << result.success
+        << '\n';
+
+    if (!result.success)
     {
-        std::cout
-            << "Scheduled segment " << segment->sequence
-            << " | duration: " << segment->duration
-            << " | url: " << segment->url
+        std::cerr
+            << "Failed to download segment "
+            << segment->sequence
             << '\n';
+
+        return 1;
     }
+}
 
     GstElement* player =
         gst_element_factory_make("playbin", "streamscope-player");
