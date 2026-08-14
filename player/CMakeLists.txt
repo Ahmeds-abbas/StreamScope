@@ -8,6 +8,13 @@ pkg_check_modules(
 )
 
 pkg_check_modules(
+    GSTREAMER_APP
+    REQUIRED
+    IMPORTED_TARGET
+    gstreamer-app-1.0
+)
+
+pkg_check_modules(
     LIBCURL
     REQUIRED
     IMPORTED_TARGET
@@ -31,6 +38,7 @@ target_link_libraries(
     streamscope_player
     PRIVATE
         PkgConfig::GSTREAMER
+        PkgConfig::GSTREAMER_APP
         PkgConfig::LIBCURL
 )
 

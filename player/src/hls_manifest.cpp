@@ -130,27 +130,27 @@ std::vector<Segment> parseMediaPlaylist(
         if (line.starts_with("#EXTINF:"))
         {
             const std::size_t colon = line.find(':');
-const std::size_t comma = line.find(',');
+            const std::size_t comma = line.find(',');
 
-const std::string durationText =
-    line.substr(colon + 1, comma - colon - 1);
+            const std::string durationText =
+                line.substr(colon + 1, comma - colon - 1);
 
-const double duration = std::stod(durationText);
+            const double duration = std::stod(durationText);
 
-std::string segmentUrl;
+            std::string segmentUrl;
 
-if (std::getline(file, segmentUrl))
-{
-    Segment segment;
+            if (std::getline(file, segmentUrl))
+            {
+                Segment segment;
 
-    segment.sequence = sequence;
-    segment.duration = duration;
-    segment.url = segmentUrl;
+                segment.sequence = sequence;
+                segment.duration = duration;
+                segment.url = segmentUrl;
 
-    segments.push_back(segment);
+                segments.push_back(segment);
 
-    sequence++;
-}
+                sequence++;
+            }
         }
     }
 

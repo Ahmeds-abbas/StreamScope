@@ -4,6 +4,7 @@
 #include "streamscope/hls_manifest.hpp"
 #include "streamscope/segment_scheduler.hpp"
 #include "streamscope/http_downloader.hpp"
+#include <gst/app/gstappsrc.h>
 
 int main(int argc, char* argv[])
 {
@@ -19,62 +20,95 @@ int main(int argc, char* argv[])
     const std::string streamUrl = argv[1];
 
     const auto representations =
-    parseMasterPlaylist("assets/generated/master.m3u8");
+        parseMasterPlaylist("assets/generated/master.m3u8");
 
-if (representations.empty())
-{
-    std::cerr << "No representations found.\n";
-    return 1;
-}
+    if (representations.empty())
+    {
+        std::cerr << "No representations found.\n";
+        return 1;
+    }
 
-const Representation& selectedRepresentation =
-    representations.front();
+    const Representation& selectedRepresentation =
+        representations.front();
 
-const std::size_t slashPosition =
-    selectedRepresentation.playlistUrl.find_last_of('/');
+    const std::size_t slashPosition =
+        selectedRepresentation.playlistUrl.find_last_of('/');
 
-const std::string representationDirectory =
-    selectedRepresentation.playlistUrl.substr(
-        0,
-        slashPosition + 1
+    const std::string representationDirectory =
+        selectedRepresentation.playlistUrl.substr(
+            0,
+            slashPosition + 1
+        );
+
+    const std::string mediaPlaylistPath =
+        "assets/generated/" + selectedRepresentation.playlistUrl;
+
+    const auto segments =
+        parseMediaPlaylist(mediaPlaylistPath);
+
+    SegmentScheduler scheduler(segments);
+
+    while (const Segment* segment = scheduler.next())
+    {
+        const std::string segmentUrl =
+            "http://127.0.0.1:8000/" +
+            representationDirectory +
+            segment->url;
+
+        const DownloadResult result =
+            downloadUrl(segmentUrl);
+
+        std::cout
+            << "Segment " << segment->sequence
+            << " | HTTP: " << result.httpStatus
+            << " | bytes: " << result.data.size()
+            << " | time: " << result.durationSeconds
+            << " | success: " << result.success
+            << '\n';
+
+        if (!result.success)
+        {
+            std::cerr
+                << "Failed to download segment "
+                << segment->sequence
+                << '\n';
+
+            return 1;
+        }
+    }
+
+    GError* pipelineError = nullptr;
+
+    GstElement* pipeline = gst_parse_launch(
+        "appsrc name=source ! decodebin name=decoder",
+        &pipelineError
     );
 
-const std::string mediaPlaylistPath =
-    "assets/generated/" + selectedRepresentation.playlistUrl;
-
-const auto segments =
-    parseMediaPlaylist(mediaPlaylistPath);
-
-SegmentScheduler scheduler(segments);
-
-while (const Segment* segment = scheduler.next())
-{
-    const std::string segmentUrl =
-        "http://127.0.0.1:8000/" +
-        representationDirectory +
-        segment->url;
-
-    const DownloadResult result =
-        downloadUrl(segmentUrl);
-
-    std::cout
-        << "Segment " << segment->sequence
-        << " | HTTP: " << result.httpStatus
-        << " | bytes: " << result.data.size()
-        << " | time: " << result.durationSeconds
-        << " | success: " << result.success
-        << '\n';
-
-    if (!result.success)
+    if (pipeline == nullptr)
     {
-        std::cerr
-            << "Failed to download segment "
-            << segment->sequence
-            << '\n';
+        std::cerr << "Failed to create appsrc pipeline.\n";
+
+        if (pipelineError != nullptr)
+        {
+            std::cerr << pipelineError->message << '\n';
+            g_clear_error(&pipelineError);
+        }
 
         return 1;
     }
-}
+
+    GstElement* source =
+        gst_bin_get_by_name(
+            GST_BIN(pipeline),
+            "source"
+        );
+
+    if (source == nullptr)
+    {
+        std::cerr << "Could not find appsrc element.\n";
+        gst_object_unref(pipeline);
+        return 1;
+    }
 
     GstElement* player =
         gst_element_factory_make("playbin", "streamscope-player");
