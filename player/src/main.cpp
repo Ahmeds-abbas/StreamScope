@@ -80,9 +80,12 @@ int main(int argc, char* argv[])
     GError* pipelineError = nullptr;
 
     GstElement* pipeline = gst_parse_launch(
-        "appsrc name=source ! decodebin name=decoder",
-        &pipelineError
-    );
+    "appsrc name=source ! "
+    "tsdemux name=demux "
+    "demux. ! queue ! h264parse ! avdec_h264 ! videoconvert ! autovideosink "
+    "demux. ! queue ! aacparse ! avdec_aac ! audioconvert ! audioresample ! autoaudiosink",
+    &pipelineError
+);
 
     if (pipeline == nullptr)
     {
@@ -109,6 +112,109 @@ int main(int argc, char* argv[])
         gst_object_unref(pipeline);
         return 1;
     }
+
+    GstCaps* caps = gst_caps_from_string(
+        "video/mpegts, systemstream=(boolean)true, packetsize=(int)188"
+    );
+
+    gst_app_src_set_caps(
+        GST_APP_SRC(source),
+        caps
+    );
+
+    gst_caps_unref(caps);
+
+    const DownloadResult testSegment =
+    downloadUrl(
+        "http://127.0.0.1:8000/360p/segment_000.ts"
+    );
+
+if (!testSegment.success)
+{
+    std::cerr << "Test segment download failed.\n";
+    gst_object_unref(source);
+    gst_object_unref(pipeline);
+    return 1;
+}
+
+    GstBuffer* buffer =
+        gst_buffer_new_allocate(
+            nullptr,
+            testSegment.data.size(),
+            nullptr
+        );
+
+    gst_buffer_fill(
+        buffer,
+        0,
+        testSegment.data.data(),
+        testSegment.data.size()
+    );
+
+    const GstFlowReturn pushResult =
+        gst_app_src_push_buffer(
+            GST_APP_SRC(source),
+            buffer
+        );
+
+    if (pushResult != GST_FLOW_OK)
+    {
+        std::cerr << "Failed to push buffer into appsrc.\n";
+    }
+
+    gst_app_src_end_of_stream(
+        GST_APP_SRC(source)
+    );
+
+    GstBus* appBus = gst_element_get_bus(pipeline);
+
+    GstMessage* appMessage =
+        gst_bus_timed_pop_filtered(
+            appBus,
+            GST_CLOCK_TIME_NONE,
+            static_cast<GstMessageType>(
+                GST_MESSAGE_ERROR | GST_MESSAGE_EOS
+            )
+        );
+
+    if (appMessage != nullptr)
+    {
+        if (GST_MESSAGE_TYPE(appMessage) == GST_MESSAGE_EOS)
+        {
+            std::cout << "appsrc test finished successfully.\n";
+        }
+        else if (GST_MESSAGE_TYPE(appMessage) == GST_MESSAGE_ERROR)
+        {
+            GError* error = nullptr;
+            gchar* debugInfo = nullptr;
+
+            gst_message_parse_error(
+                appMessage,
+                &error,
+                &debugInfo
+            );
+
+            std::cerr << "appsrc playback failed: "
+                      << error->message << '\n';
+
+            g_clear_error(&error);
+            g_free(debugInfo);
+        }
+
+        gst_message_unref(appMessage);
+    }
+
+    gst_object_unref(appBus);
+
+    gst_element_set_state(
+        pipeline,
+        GST_STATE_NULL
+    );
+
+    gst_object_unref(source);
+    gst_object_unref(pipeline);
+
+    return 0;
 
     GstElement* player =
         gst_element_factory_make("playbin", "streamscope-player");
@@ -195,4 +301,3 @@ int main(int argc, char* argv[])
 
     return exitCode;
 }
-
