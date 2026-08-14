@@ -46,46 +46,15 @@ int main(int argc, char* argv[])
     const auto segments =
         parseMediaPlaylist(mediaPlaylistPath);
 
-    SegmentScheduler scheduler(segments);
-
-    while (const Segment* segment = scheduler.next())
-    {
-        const std::string segmentUrl =
-            "http://127.0.0.1:8000/" +
-            representationDirectory +
-            segment->url;
-
-        const DownloadResult result =
-            downloadUrl(segmentUrl);
-
-        std::cout
-            << "Segment " << segment->sequence
-            << " | HTTP: " << result.httpStatus
-            << " | bytes: " << result.data.size()
-            << " | time: " << result.durationSeconds
-            << " | success: " << result.success
-            << '\n';
-
-        if (!result.success)
-        {
-            std::cerr
-                << "Failed to download segment "
-                << segment->sequence
-                << '\n';
-
-            return 1;
-        }
-    }
-
     GError* pipelineError = nullptr;
 
     GstElement* pipeline = gst_parse_launch(
-    "appsrc name=source ! "
-    "tsdemux name=demux "
-    "demux. ! queue ! h264parse ! avdec_h264 ! videoconvert ! autovideosink "
-    "demux. ! queue ! aacparse ! avdec_aac ! audioconvert ! audioresample ! autoaudiosink",
-    &pipelineError
-);
+        "appsrc name=source ! "
+        "tsdemux name=demux "
+        "demux. ! queue ! h264parse ! avdec_h264 ! videoconvert ! autovideosink "
+        "demux. ! queue ! aacparse ! avdec_aac ! audioconvert ! audioresample ! autoaudiosink",
+        &pipelineError
+    );
 
     if (pipeline == nullptr)
     {
@@ -124,42 +93,67 @@ int main(int argc, char* argv[])
 
     gst_caps_unref(caps);
 
-    const DownloadResult testSegment =
-    downloadUrl(
-        "http://127.0.0.1:8000/360p/segment_000.ts"
-    );
+    gst_element_set_state(pipeline, GST_STATE_PLAYING);
 
-if (!testSegment.success)
-{
-    std::cerr << "Test segment download failed.\n";
-    gst_object_unref(source);
-    gst_object_unref(pipeline);
-    return 1;
-}
-
-    GstBuffer* buffer =
-        gst_buffer_new_allocate(
+    const GstStateChangeReturn stateResult =
+        gst_element_get_state(
+            pipeline,
             nullptr,
-            testSegment.data.size(),
-            nullptr
+            nullptr,
+            5 * GST_SECOND
         );
 
-    gst_buffer_fill(
-        buffer,
-        0,
-        testSegment.data.data(),
-        testSegment.data.size()
-    );
+    std::cout << "Pipeline state result: "
+              << stateResult
+              << '\n';
 
-    const GstFlowReturn pushResult =
-        gst_app_src_push_buffer(
-            GST_APP_SRC(source),
-            buffer
-        );
+    SegmentScheduler scheduler(segments);
 
-    if (pushResult != GST_FLOW_OK)
+    while (const Segment* segment = scheduler.next())
     {
-        std::cerr << "Failed to push buffer into appsrc.\n";
+        const std::string segmentUrl =
+            "http://127.0.0.1:8000/" +
+            representationDirectory +
+            segment->url;
+
+        const DownloadResult result = downloadUrl(segmentUrl);
+
+        if (!result.success)
+        {
+            std::cerr << "Failed to download segment "
+                      << segment->sequence << '\n';
+            break;
+        }
+
+        GstBuffer* buffer =
+            gst_buffer_new_allocate(
+                nullptr,
+                result.data.size(),
+                nullptr
+            );
+
+        gst_buffer_fill(
+            buffer,
+            0,
+            result.data.data(),
+            result.data.size()
+        );
+
+        const GstFlowReturn pushResult =
+            gst_app_src_push_buffer(
+                GST_APP_SRC(source),
+                buffer
+            );
+
+        if (pushResult != GST_FLOW_OK)
+        {
+            std::cerr << "Failed to push segment "
+                      << segment->sequence << '\n';
+            break;
+        }
+
+        std::cout << "Pushed segment "
+                  << segment->sequence << '\n';
     }
 
     gst_app_src_end_of_stream(
@@ -176,6 +170,11 @@ if (!testSegment.success)
                 GST_MESSAGE_ERROR | GST_MESSAGE_EOS
             )
         );
+
+    if (appMessage == nullptr)
+    {
+        std::cerr << "Timed out waiting for EOS or ERROR.\n";
+    }
 
     if (appMessage != nullptr)
     {
@@ -227,10 +226,10 @@ if (!testSegment.success)
     g_object_set(player, "uri", streamUrl.c_str(), nullptr);
 
     std::cout << "Stream URL: " << streamUrl << '\n';
-    const GstStateChangeReturn stateResult =
+    const GstStateChangeReturn playerStateResult =
         gst_element_set_state(player, GST_STATE_PLAYING);
 
-    if (stateResult == GST_STATE_CHANGE_FAILURE)
+    if (playerStateResult == GST_STATE_CHANGE_FAILURE)
     {
         std::cerr << "Failed to start playback.\n";
         gst_object_unref(player);
