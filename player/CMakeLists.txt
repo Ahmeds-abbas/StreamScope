@@ -27,6 +27,7 @@ add_executable(streamscope_player
     src/segment_scheduler.cpp
     src/http_downloader.cpp
     src/playback_state.cpp
+    src/buffer_model.cpp
 )
 
 target_include_directories(

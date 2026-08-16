@@ -9,3 +9,16 @@ enum class PlaybackState
     Ended,
     Error
 };
+
+class PlaybackStateMachine
+{
+public:
+    PlaybackStateMachine();
+
+    PlaybackState current() const;
+
+    bool transitionTo(PlaybackState next);
+
+private:
+    PlaybackState currentState_;
+};

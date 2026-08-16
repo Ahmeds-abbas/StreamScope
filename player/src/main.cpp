@@ -1,6 +1,7 @@
 #include <gst/gst.h>
 #include <iostream>
 #include <string>
+#include "streamscope/buffer_model.hpp"
 #include "streamscope/hls_manifest.hpp"
 #include "streamscope/segment_scheduler.hpp"
 #include "streamscope/http_downloader.hpp"
@@ -16,6 +17,22 @@ int main(int argc, char* argv[])
         std::cerr << "Usage: streamscope_player <HLS URL>\n";
         return 1;
     }
+
+    BufferModel buffer;
+
+    std::cout << "Buffer: " << buffer.level() << '\n';
+
+    buffer.add(4.0);
+    std::cout << "Buffer: " << buffer.level() << '\n';
+
+    buffer.add(4.0);
+    std::cout << "Buffer: " << buffer.level() << '\n';
+
+    buffer.consume(3.0);
+    std::cout << "Buffer: " << buffer.level() << '\n';
+
+    buffer.consume(10.0);
+    std::cout << "Buffer: " << buffer.level() << '\n';
 
     const std::string streamUrl = argv[1];
 
