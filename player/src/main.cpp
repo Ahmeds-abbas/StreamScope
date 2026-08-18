@@ -3,6 +3,7 @@
 #include <string>
 #include "streamscope/buffer_model.hpp"
 #include "streamscope/hls_manifest.hpp"
+#include "streamscope/playback_state.hpp"
 #include "streamscope/segment_scheduler.hpp"
 #include "streamscope/http_downloader.hpp"
 #include <gst/app/gstappsrc.h>
@@ -17,22 +18,6 @@ int main(int argc, char* argv[])
         std::cerr << "Usage: streamscope_player <HLS URL>\n";
         return 1;
     }
-
-    BufferModel buffer;
-
-    std::cout << "Buffer: " << buffer.level() << '\n';
-
-    buffer.add(4.0);
-    std::cout << "Buffer: " << buffer.level() << '\n';
-
-    buffer.add(4.0);
-    std::cout << "Buffer: " << buffer.level() << '\n';
-
-    buffer.consume(3.0);
-    std::cout << "Buffer: " << buffer.level() << '\n';
-
-    buffer.consume(10.0);
-    std::cout << "Buffer: " << buffer.level() << '\n';
 
     const std::string streamUrl = argv[1];
 
@@ -125,6 +110,10 @@ int main(int argc, char* argv[])
               << '\n';
 
     SegmentScheduler scheduler(segments);
+    BufferModel buffer;
+    PlaybackStateMachine stateMachine;
+
+    stateMachine.transitionTo(PlaybackState::Buffering);
 
     while (const Segment* segment = scheduler.next())
     {
@@ -142,7 +131,7 @@ int main(int argc, char* argv[])
             break;
         }
 
-        GstBuffer* buffer =
+        GstBuffer* gstBuffer =
             gst_buffer_new_allocate(
                 nullptr,
                 result.data.size(),
@@ -150,7 +139,7 @@ int main(int argc, char* argv[])
             );
 
         gst_buffer_fill(
-            buffer,
+            gstBuffer,
             0,
             result.data.data(),
             result.data.size()
@@ -159,7 +148,7 @@ int main(int argc, char* argv[])
         const GstFlowReturn pushResult =
             gst_app_src_push_buffer(
                 GST_APP_SRC(source),
-                buffer
+                gstBuffer
             );
 
         if (pushResult != GST_FLOW_OK)
@@ -168,6 +157,12 @@ int main(int argc, char* argv[])
                       << segment->sequence << '\n';
             break;
         }
+
+        buffer.add(segment->duration);
+
+        std::cout << "Buffer level: "
+                  << buffer.level()
+                  << " seconds\n";
 
         std::cout << "Pushed segment "
                   << segment->sequence << '\n';
@@ -179,46 +174,92 @@ int main(int argc, char* argv[])
 
     GstBus* appBus = gst_element_get_bus(pipeline);
 
-    GstMessage* appMessage =
-        gst_bus_timed_pop_filtered(
-            appBus,
-            GST_CLOCK_TIME_NONE,
-            static_cast<GstMessageType>(
-                GST_MESSAGE_ERROR | GST_MESSAGE_EOS
-            )
-        );
+    gint64 previousPosition = 0;
+    GstMessage* appMessage = nullptr;
 
-    if (appMessage == nullptr)
+    while (true)
     {
-        std::cerr << "Timed out waiting for EOS or ERROR.\n";
-    }
-
-    if (appMessage != nullptr)
-    {
-        if (GST_MESSAGE_TYPE(appMessage) == GST_MESSAGE_EOS)
-        {
-            std::cout << "appsrc test finished successfully.\n";
-        }
-        else if (GST_MESSAGE_TYPE(appMessage) == GST_MESSAGE_ERROR)
-        {
-            GError* error = nullptr;
-            gchar* debugInfo = nullptr;
-
-            gst_message_parse_error(
-                appMessage,
-                &error,
-                &debugInfo
+        appMessage =
+            gst_bus_timed_pop_filtered(
+                appBus,
+                250 * GST_MSECOND,
+                static_cast<GstMessageType>(
+                    GST_MESSAGE_ERROR | GST_MESSAGE_EOS
+                )
             );
 
-            std::cerr << "appsrc playback failed: "
-                      << error->message << '\n';
+        gint64 currentPosition = 0;
 
-            g_clear_error(&error);
-            g_free(debugInfo);
+        if (gst_element_query_position(
+                pipeline,
+                GST_FORMAT_TIME,
+                &currentPosition))
+        {
+            const double deltaSeconds =
+                static_cast<double>(
+                    currentPosition - previousPosition
+                ) / GST_SECOND;
+
+            if (deltaSeconds > 0.0)
+            {
+                buffer.consume(deltaSeconds);
+
+                std::cout << "Buffer level: "
+                          << buffer.level()
+                          << " seconds\n";
+            }
+
+            if (currentPosition > 0 &&
+                stateMachine.current() == PlaybackState::Buffering)
+            {
+                stateMachine.transitionTo(PlaybackState::Playing);
+
+                std::cout << "State: PLAYING\n";
+            }
+
+            previousPosition = currentPosition;
         }
 
-        gst_message_unref(appMessage);
+        if (appMessage != nullptr)
+        {
+            if (GST_MESSAGE_TYPE(appMessage) == GST_MESSAGE_EOS)
+            {
+                stateMachine.transitionTo(PlaybackState::Ended);
+                std::cout << "State: ENDED\n";
+            }
+            else if (GST_MESSAGE_TYPE(appMessage) == GST_MESSAGE_ERROR)
+            {
+                stateMachine.transitionTo(PlaybackState::Error);
+                std::cout << "State: ERROR\n";
+            }
+
+            break;
+        }
     }
+
+    if (GST_MESSAGE_TYPE(appMessage) == GST_MESSAGE_EOS)
+    {
+        std::cout << "appsrc test finished successfully.\n";
+    }
+    else if (GST_MESSAGE_TYPE(appMessage) == GST_MESSAGE_ERROR)
+    {
+        GError* error = nullptr;
+        gchar* debugInfo = nullptr;
+
+        gst_message_parse_error(
+            appMessage,
+            &error,
+            &debugInfo
+        );
+
+        std::cerr << "appsrc playback failed: "
+                  << error->message << '\n';
+
+        g_clear_error(&error);
+        g_free(debugInfo);
+    }
+
+    gst_message_unref(appMessage);
 
     gst_object_unref(appBus);
 
