@@ -209,6 +209,15 @@ int main(int argc, char* argv[])
                   << buffer.level()
                   << " seconds\n";
 
+        telemetry.writeEvent(
+            "{\"event\":\"buffer_level\","
+            "\"timestamp_ms\":" +
+            std::to_string(telemetry.timestampMs()) +
+            ",\"seconds\":" +
+            std::to_string(buffer.level()) +
+            "}"
+        );
+
         std::cout << "Pushed segment "
                   << segment->sequence << '\n';
     }
