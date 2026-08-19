@@ -132,14 +132,49 @@ int main(int argc, char* argv[])
             representationDirectory +
             segment->url;
 
+        telemetry.writeEvent(
+            "{\"event\":\"segment_download_started\","
+            "\"timestamp_ms\":" +
+            std::to_string(telemetry.timestampMs()) +
+            ",\"sequence\":" +
+            std::to_string(segment->sequence) +
+            "}"
+        );
+
         const DownloadResult result = downloadUrl(segmentUrl);
 
         if (!result.success)
         {
+            telemetry.writeEvent(
+                "{\"event\":\"segment_download_failed\","
+                "\"timestamp_ms\":" +
+                std::to_string(telemetry.timestampMs()) +
+                ",\"sequence\":" +
+                std::to_string(segment->sequence) +
+                ",\"http_status\":" +
+                std::to_string(result.httpStatus) +
+                "}"
+            );
+
             std::cerr << "Failed to download segment "
                       << segment->sequence << '\n';
             break;
         }
+
+        telemetry.writeEvent(
+            "{\"event\":\"segment_download_completed\","
+            "\"timestamp_ms\":" +
+            std::to_string(telemetry.timestampMs()) +
+            ",\"sequence\":" +
+            std::to_string(segment->sequence) +
+            ",\"http_status\":" +
+            std::to_string(result.httpStatus) +
+            ",\"bytes\":" +
+            std::to_string(result.data.size()) +
+            ",\"duration_seconds\":" +
+            std::to_string(result.durationSeconds) +
+            "}"
+        );
 
         GstBuffer* gstBuffer =
             gst_buffer_new_allocate(
