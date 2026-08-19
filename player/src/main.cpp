@@ -5,6 +5,7 @@
 #include "streamscope/hls_manifest.hpp"
 #include "streamscope/playback_state.hpp"
 #include "streamscope/segment_scheduler.hpp"
+#include "streamscope/telemetry_writer.hpp"
 #include "streamscope/http_downloader.hpp"
 #include <gst/app/gstappsrc.h>
 
@@ -18,6 +19,14 @@ int main(int argc, char* argv[])
         std::cerr << "Usage: streamscope_player <HLS URL>\n";
         return 1;
     }
+
+    TelemetryWriter telemetry("telemetry/run.jsonl");
+
+    telemetry.writeEvent(
+        "{\"event\":\"run_started\",\"timestamp_ms\":" +
+        std::to_string(telemetry.timestampMs()) +
+        "}"
+    );
 
     const std::string streamUrl = argv[1];
 
