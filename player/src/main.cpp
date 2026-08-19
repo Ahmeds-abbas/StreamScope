@@ -57,7 +57,7 @@ int main(int argc, char* argv[])
         "appsrc name=source ! "
         "tsdemux name=demux "
         "demux. ! queue ! h264parse ! avdec_h264 ! videoconvert ! autovideosink "
-        "demux. ! queue ! aacparse ! avdec_aac ! audioconvert ! audioresample ! autoaudiosink",
+        "demux. ! queue ! aacparse ! avdec_aac ! fakesink sync=false",
         &pipelineError
     );
 
@@ -261,6 +261,15 @@ int main(int argc, char* argv[])
                 std::cout << "Buffer level: "
                           << buffer.level()
                           << " seconds\n";
+
+                telemetry.writeEvent(
+                    "{\"event\":\"buffer_level\","
+                    "\"timestamp_ms\":" +
+                    std::to_string(telemetry.timestampMs()) +
+                    ",\"seconds\":" +
+                    std::to_string(buffer.level()) +
+                    "}"
+                );
             }
 
             if (currentPosition > 0 &&
