@@ -22,12 +22,6 @@ int main(int argc, char* argv[])
 
     TelemetryWriter telemetry("telemetry/run.jsonl");
 
-    telemetry.writeEvent(
-        "{\"event\":\"run_started\",\"timestamp_ms\":" +
-        std::to_string(telemetry.timestampMs()) +
-        "}"
-    );
-
     const std::string streamUrl = argv[1];
 
     const auto representations =
@@ -123,6 +117,13 @@ int main(int argc, char* argv[])
     PlaybackStateMachine stateMachine;
 
     stateMachine.transitionTo(PlaybackState::Buffering);
+
+    telemetry.writeEvent(
+        "{\"event\":\"playback_state_changed\","
+        "\"timestamp_ms\":" +
+        std::to_string(telemetry.timestampMs()) +
+        ",\"state\":\"Buffering\"}"
+    );
 
     while (const Segment* segment = scheduler.next())
     {
@@ -223,6 +224,13 @@ int main(int argc, char* argv[])
             {
                 stateMachine.transitionTo(PlaybackState::Playing);
 
+                telemetry.writeEvent(
+                    "{\"event\":\"playback_state_changed\","
+                    "\"timestamp_ms\":" +
+                    std::to_string(telemetry.timestampMs()) +
+                    ",\"state\":\"Playing\"}"
+                );
+
                 std::cout << "State: PLAYING\n";
             }
 
@@ -234,11 +242,27 @@ int main(int argc, char* argv[])
             if (GST_MESSAGE_TYPE(appMessage) == GST_MESSAGE_EOS)
             {
                 stateMachine.transitionTo(PlaybackState::Ended);
+
+                telemetry.writeEvent(
+                    "{\"event\":\"playback_state_changed\","
+                    "\"timestamp_ms\":" +
+                    std::to_string(telemetry.timestampMs()) +
+                    ",\"state\":\"Ended\"}"
+                );
+
                 std::cout << "State: ENDED\n";
             }
             else if (GST_MESSAGE_TYPE(appMessage) == GST_MESSAGE_ERROR)
             {
                 stateMachine.transitionTo(PlaybackState::Error);
+
+                telemetry.writeEvent(
+                    "{\"event\":\"playback_state_changed\","
+                    "\"timestamp_ms\":" +
+                    std::to_string(telemetry.timestampMs()) +
+                    ",\"state\":\"Error\"}"
+                );
+
                 std::cout << "State: ERROR\n";
             }
 
