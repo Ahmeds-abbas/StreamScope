@@ -52,3 +52,23 @@ target_compile_options(
         -Wextra
         -Wpedantic
 )
+
+find_package(GTest REQUIRED)
+
+add_executable(streamscope_tests
+    tests/buffer_model_test.cpp
+    src/buffer_model.cpp
+)
+
+target_include_directories(streamscope_tests
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(streamscope_tests
+    PRIVATE
+        GTest::gtest_main
+)
+
+include(GoogleTest)
+gtest_discover_tests(streamscope_tests)
