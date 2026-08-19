@@ -58,8 +58,10 @@ find_package(GTest REQUIRED)
 add_executable(streamscope_tests
     tests/buffer_model_test.cpp
     tests/playback_state_test.cpp
+    tests/telemetry_writer_test.cpp
     src/buffer_model.cpp
     src/playback_state.cpp
+    src/telemetry_writer.cpp
 )
 
 target_include_directories(streamscope_tests
