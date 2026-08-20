@@ -185,6 +185,21 @@ int main(int argc, char* argv[])
                   << selectedRepresentation->height
                   << "p\n";
 
+        telemetry.writeEvent(
+            "{\"event\":\"representation_selected\","
+            "\"timestamp_ms\":" +
+            std::to_string(telemetry.timestampMs()) +
+            ",\"sequence\":" +
+            std::to_string(segmentIndex) +
+            ",\"height\":" +
+            std::to_string(selectedRepresentation->height) +
+            ",\"bandwidth_bps\":" +
+            std::to_string(selectedRepresentation->bandwidth) +
+            ",\"measured_throughput_mbps\":" +
+            std::to_string(latestThroughputMbps) +
+            "}"
+        );
+
         const std::string playlistUrl =
             selectedRepresentation->playlistUrl;
 
