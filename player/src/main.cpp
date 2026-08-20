@@ -6,6 +6,7 @@
 #include "streamscope/playback_state.hpp"
 #include "streamscope/segment_scheduler.hpp"
 #include "streamscope/telemetry_writer.hpp"
+#include "streamscope/throughput_estimator.hpp"
 #include "streamscope/http_downloader.hpp"
 #include <gst/app/gstappsrc.h>
 
@@ -158,8 +159,34 @@ int main(int argc, char* argv[])
 
             std::cerr << "Failed to download segment "
                       << segment->sequence << '\n';
-            break;
+
+            stateMachine.transitionTo(PlaybackState::Error);
+
+            telemetry.writeEvent(
+                "{\"event\":\"playback_state_changed\","
+                "\"timestamp_ms\":" +
+                std::to_string(telemetry.timestampMs()) +
+                ",\"state\":\"Error\"}"
+            );
+
+            gst_element_set_state(pipeline, GST_STATE_NULL);
+
+            gst_object_unref(source);
+            gst_object_unref(pipeline);
+
+            return 1;
         }
+
+        const double throughputMbps =
+            calculateThroughputMbps(
+                result.data.size(),
+                result.durationSeconds
+            );
+
+        std::cout << "Segment " << segment->sequence
+                  << " throughput: "
+                  << throughputMbps
+                  << " Mbps\n";
 
         telemetry.writeEvent(
             "{\"event\":\"segment_download_completed\","
@@ -173,6 +200,8 @@ int main(int argc, char* argv[])
             std::to_string(result.data.size()) +
             ",\"duration_seconds\":" +
             std::to_string(result.durationSeconds) +
+            ",\"throughput_mbps\":" +
+            std::to_string(throughputMbps) +
             "}"
         );
 
