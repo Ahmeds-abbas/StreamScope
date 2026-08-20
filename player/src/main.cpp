@@ -1,10 +1,10 @@
 #include <gst/gst.h>
 #include <iostream>
 #include <string>
+#include "streamscope/abr_selector.hpp"
 #include "streamscope/buffer_model.hpp"
 #include "streamscope/hls_manifest.hpp"
 #include "streamscope/playback_state.hpp"
-#include "streamscope/segment_scheduler.hpp"
 #include "streamscope/telemetry_writer.hpp"
 #include "streamscope/throughput_estimator.hpp"
 #include "streamscope/http_downloader.hpp"
@@ -34,23 +34,40 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    const Representation& selectedRepresentation =
-        representations.front();
+    std::vector<std::vector<Segment>> representationSegments;
 
-    const std::size_t slashPosition =
-        selectedRepresentation.playlistUrl.find_last_of('/');
+    for (const Representation& representation : representations)
+    {
+        const std::string playlistPath =
+            "assets/generated/" + representation.playlistUrl;
 
-    const std::string representationDirectory =
-        selectedRepresentation.playlistUrl.substr(
-            0,
-            slashPosition + 1
+        representationSegments.push_back(
+            parseMediaPlaylist(playlistPath)
         );
+    }
 
-    const std::string mediaPlaylistPath =
-        "assets/generated/" + selectedRepresentation.playlistUrl;
+    if (representationSegments.empty())
+    {
+        std::cerr << "No representation playlists loaded\n";
+        return 1;
+    }
 
-    const auto segments =
-        parseMediaPlaylist(mediaPlaylistPath);
+    const std::size_t segmentCount =
+        representationSegments.front().size();
+
+    for (const auto& representationSegmentList : representationSegments)
+    {
+        if (representationSegmentList.size() != segmentCount)
+        {
+            std::cerr << "Representation segment counts do not match\n";
+            return 1;
+        }
+    }
+
+    std::cout << "Loaded " << representations.size()
+              << " aligned representations with "
+              << segmentCount
+              << " segments each\n";
 
     GError* pipelineError = nullptr;
 
@@ -113,7 +130,6 @@ int main(int argc, char* argv[])
               << stateResult
               << '\n';
 
-    SegmentScheduler scheduler(segments);
     BufferModel buffer;
     PlaybackStateMachine stateMachine;
 
@@ -126,39 +142,95 @@ int main(int argc, char* argv[])
         ",\"state\":\"Buffering\"}"
     );
 
-    while (const Segment* segment = scheduler.next())
+    double latestThroughputMbps = 0.0;
+
+    for (std::size_t segmentIndex = 0;
+         segmentIndex < segmentCount;
+         ++segmentIndex)
     {
+        const Representation* selectedRepresentation = nullptr;
+
+        if (segmentIndex == 0)
+        {
+            selectedRepresentation = &representations.front();
+
+            for (const Representation& representation : representations)
+            {
+                if (representation.bandwidth <
+                    selectedRepresentation->bandwidth)
+                {
+                    selectedRepresentation = &representation;
+                }
+            }
+        }
+        else
+        {
+            selectedRepresentation =
+                selectRepresentation(
+                    representations,
+                    latestThroughputMbps
+                );
+        }
+
+        const std::size_t representationIndex =
+            static_cast<std::size_t>(
+                selectedRepresentation - representations.data()
+            );
+
+        const Segment& segment =
+            representationSegments[representationIndex][segmentIndex];
+
+        std::cout << "Segment " << segmentIndex
+                  << " selected "
+                  << selectedRepresentation->height
+                  << "p\n";
+
+        const std::string playlistUrl =
+            selectedRepresentation->playlistUrl;
+
+        const std::size_t lastSlash =
+            playlistUrl.find_last_of('/');
+
+        const std::string representationDirectory =
+            playlistUrl.substr(
+                0,
+                lastSlash + 1
+            );
+
         const std::string segmentUrl =
             "http://127.0.0.1:8000/" +
             representationDirectory +
-            segment->url;
+            segment.url;
+
+        std::cout << "Downloading: " << segmentUrl << '\n';
 
         telemetry.writeEvent(
             "{\"event\":\"segment_download_started\","
             "\"timestamp_ms\":" +
             std::to_string(telemetry.timestampMs()) +
             ",\"sequence\":" +
-            std::to_string(segment->sequence) +
+            std::to_string(segment.sequence) +
             "}"
         );
 
-        const DownloadResult result = downloadUrl(segmentUrl);
+        DownloadResult downloadResult =
+            downloadUrl(segmentUrl);
 
-        if (!result.success)
+        if (!downloadResult.success)
         {
             telemetry.writeEvent(
                 "{\"event\":\"segment_download_failed\","
                 "\"timestamp_ms\":" +
                 std::to_string(telemetry.timestampMs()) +
                 ",\"sequence\":" +
-                std::to_string(segment->sequence) +
+                std::to_string(segment.sequence) +
                 ",\"http_status\":" +
-                std::to_string(result.httpStatus) +
+                std::to_string(downloadResult.httpStatus) +
                 "}"
             );
 
             std::cerr << "Failed to download segment "
-                      << segment->sequence << '\n';
+                      << segment.sequence << '\n';
 
             stateMachine.transitionTo(PlaybackState::Error);
 
@@ -177,15 +249,15 @@ int main(int argc, char* argv[])
             return 1;
         }
 
-        const double throughputMbps =
+        latestThroughputMbps =
             calculateThroughputMbps(
-                result.data.size(),
-                result.durationSeconds
+                downloadResult.data.size(),
+                downloadResult.durationSeconds
             );
 
-        std::cout << "Segment " << segment->sequence
-                  << " throughput: "
-                  << throughputMbps
+        std::cout
+                  << "Measured throughput: "
+                  << latestThroughputMbps
                   << " Mbps\n";
 
         telemetry.writeEvent(
@@ -193,30 +265,30 @@ int main(int argc, char* argv[])
             "\"timestamp_ms\":" +
             std::to_string(telemetry.timestampMs()) +
             ",\"sequence\":" +
-            std::to_string(segment->sequence) +
+            std::to_string(segment.sequence) +
             ",\"http_status\":" +
-            std::to_string(result.httpStatus) +
+            std::to_string(downloadResult.httpStatus) +
             ",\"bytes\":" +
-            std::to_string(result.data.size()) +
+            std::to_string(downloadResult.data.size()) +
             ",\"duration_seconds\":" +
-            std::to_string(result.durationSeconds) +
+            std::to_string(downloadResult.durationSeconds) +
             ",\"throughput_mbps\":" +
-            std::to_string(throughputMbps) +
+            std::to_string(latestThroughputMbps) +
             "}"
         );
 
         GstBuffer* gstBuffer =
             gst_buffer_new_allocate(
                 nullptr,
-                result.data.size(),
+                downloadResult.data.size(),
                 nullptr
             );
 
         gst_buffer_fill(
             gstBuffer,
             0,
-            result.data.data(),
-            result.data.size()
+            downloadResult.data.data(),
+            downloadResult.data.size()
         );
 
         const GstFlowReturn pushResult =
@@ -228,11 +300,11 @@ int main(int argc, char* argv[])
         if (pushResult != GST_FLOW_OK)
         {
             std::cerr << "Failed to push segment "
-                      << segment->sequence << '\n';
+                      << segment.sequence << '\n';
             break;
         }
 
-        buffer.add(segment->duration);
+        buffer.add(segment.duration);
 
         std::cout << "Buffer level: "
                   << buffer.level()
@@ -248,7 +320,7 @@ int main(int argc, char* argv[])
         );
 
         std::cout << "Pushed segment "
-                  << segment->sequence << '\n';
+                  << segment.sequence << '\n';
     }
 
     gst_app_src_end_of_stream(
