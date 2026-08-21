@@ -21,6 +21,32 @@ int main(int argc, char* argv[])
         return 1;
     }
 
+    std::string mode = "abr";
+    int fixedHeight = 1080;
+
+    for (int i = 2; i < argc; ++i)
+    {
+        const std::string arg = argv[i];
+
+        if (arg == "--mode" && i + 1 < argc)
+        {
+            mode = argv[++i];
+        }
+        else if (arg == "--height" && i + 1 < argc)
+        {
+            fixedHeight = std::stoi(argv[++i]);
+        }
+    }
+
+    std::cout << "Playback mode: " << mode << '\n';
+
+    if (mode == "fixed")
+    {
+        std::cout << "Fixed height: "
+                  << fixedHeight
+                  << "p\n";
+    }
+
     TelemetryWriter telemetry("telemetry/run.jsonl");
 
     const std::string streamUrl = argv[1];
@@ -150,26 +176,52 @@ int main(int argc, char* argv[])
     {
         const Representation* selectedRepresentation = nullptr;
 
-        if (segmentIndex == 0)
+        if (mode == "fixed")
         {
-            selectedRepresentation = &representations.front();
-
             for (const Representation& representation : representations)
             {
-                if (representation.bandwidth <
-                    selectedRepresentation->bandwidth)
+                if (representation.height == fixedHeight)
                 {
                     selectedRepresentation = &representation;
+                    break;
                 }
             }
         }
         else
         {
-            selectedRepresentation =
-                selectRepresentation(
-                    representations,
-                    latestThroughputMbps
-                );
+            if (segmentIndex == 0)
+            {
+                selectedRepresentation = &representations.front();
+
+                for (const Representation& representation : representations)
+                {
+                    if (representation.bandwidth <
+                        selectedRepresentation->bandwidth)
+                    {
+                        selectedRepresentation = &representation;
+                    }
+                }
+            }
+            else
+            {
+                selectedRepresentation =
+                    selectRepresentation(
+                        representations,
+                        latestThroughputMbps
+                    );
+            }
+        }
+
+        if (selectedRepresentation == nullptr)
+        {
+            std::cerr
+                << "No representation available for requested mode\n";
+
+            gst_element_set_state(pipeline, GST_STATE_NULL);
+            gst_object_unref(source);
+            gst_object_unref(pipeline);
+
+            return 1;
         }
 
         const std::size_t representationIndex =
