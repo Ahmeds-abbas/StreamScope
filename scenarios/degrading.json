@@ -1,0 +1,21 @@
+{
+  "name": "degrading-network",
+  "steps": [
+    {
+      "duration_seconds": 15,
+      "bandwidth_mbps": 10
+    },
+    {
+      "duration_seconds": 15,
+      "bandwidth_mbps": 3
+    },
+    {
+      "duration_seconds": 15,
+      "bandwidth_mbps": 6
+    },
+    {
+      "duration_seconds": 15,
+      "bandwidth_mbps": 10
+    }
+  ]
+}
