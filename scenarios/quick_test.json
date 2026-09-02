@@ -1,0 +1,13 @@
+{
+  "name": "quick-test",
+  "steps": [
+    {
+      "duration_seconds": 3,
+      "bandwidth_mbps": 10
+    },
+    {
+      "duration_seconds": 3,
+      "bandwidth_mbps": 3
+    }
+  ]
+}
