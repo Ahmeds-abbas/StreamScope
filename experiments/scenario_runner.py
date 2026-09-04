@@ -2,6 +2,7 @@ import json
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 
 def load_scenario(path):
@@ -45,6 +46,27 @@ def clear_bandwidth():
     )
 
 
+def start_player(repo_root):
+    player_path = (
+        repo_root
+        / "build"
+        / "player"
+        / "streamscope_player"
+    )
+
+    command = [
+        str(player_path),
+        "http://127.0.0.1:8000/master.m3u8",
+        "--mode",
+        "abr",
+    ]
+
+    return subprocess.Popen(
+        command,
+        cwd=repo_root,
+    )
+
+
 def main():
     if len(sys.argv) != 2:
         print(
@@ -54,9 +76,18 @@ def main():
 
     scenario = load_scenario(sys.argv[1])
 
+    repo_root = Path(__file__).resolve().parents[1]
+
     print(f"Scenario: {scenario['name']}")
 
+    # Ask for sudo authentication before timing begins.
+    subprocess.run(["sudo", "-v"], check=True)
+
+    player = None
+
     try:
+        player = start_player(repo_root)
+
         for index, step in enumerate(scenario["steps"]):
             bandwidth = step["bandwidth_mbps"]
             duration = step["duration_seconds"]
@@ -68,15 +99,27 @@ def main():
             )
 
             apply_bandwidth(bandwidth)
-
             time.sleep(duration)
+
+        print("Waiting for StreamScope to finish...")
+
+        return_code = player.wait()
+
+        print(
+            f"StreamScope exited with code "
+            f"{return_code}"
+        )
+
+        return return_code
 
     finally:
         print("Restoring normal network...")
         clear_bandwidth()
 
-    print("Scenario completed.")
-    return 0
+        if player is not None and player.poll() is None:
+            print("Stopping StreamScope...")
+            player.terminate()
+            player.wait()
 
 
 if __name__ == "__main__":
