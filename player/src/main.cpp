@@ -23,6 +23,7 @@ int main(int argc, char* argv[])
 
     std::string mode = "abr";
     int fixedHeight = 1080;
+    std::string telemetryPath = "telemetry/run.jsonl";
 
     for (int i = 2; i < argc; ++i)
     {
@@ -36,6 +37,10 @@ int main(int argc, char* argv[])
         {
             fixedHeight = std::stoi(argv[++i]);
         }
+        else if (arg == "--telemetry" && i + 1 < argc)
+        {
+            telemetryPath = argv[++i];
+        }
     }
 
     std::cout << "Playback mode: " << mode << '\n';
@@ -47,7 +52,7 @@ int main(int argc, char* argv[])
                   << "p\n";
     }
 
-    TelemetryWriter telemetry("telemetry/run.jsonl");
+    TelemetryWriter telemetry(telemetryPath);
 
     const std::string streamUrl = argv[1];
 
