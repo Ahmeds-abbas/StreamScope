@@ -81,16 +81,24 @@ def main():
 
     repo_root = Path(__file__).resolve().parents[1]
 
-    telemetry_directory = repo_root / "telemetry" / "runs"
-    telemetry_directory.mkdir(parents=True, exist_ok=True)
+    telemetry_dir = repo_root / "telemetry" / "runs"
+    telemetry_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now().strftime(
+        "%Y%m%d-%H%M%S"
+    )
     telemetry_path = (
-        telemetry_directory
-        / f"{scenario['name']}_{timestamp}.jsonl"
+        telemetry_dir
+        / f"{scenario['name']}-{timestamp}.jsonl"
     )
 
     print(f"Scenario: {scenario['name']}")
+    print(
+        f"Telemetry: {telemetry_path}"
+    )
 
     # Ask for sudo authentication before timing begins.
     subprocess.run(["sudo", "-v"], check=True)
