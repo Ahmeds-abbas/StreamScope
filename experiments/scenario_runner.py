@@ -2,6 +2,7 @@ import json
 import subprocess
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 
@@ -46,7 +47,7 @@ def clear_bandwidth():
     )
 
 
-def start_player(repo_root):
+def start_player(repo_root, telemetry_path):
     player_path = (
         repo_root
         / "build"
@@ -59,6 +60,8 @@ def start_player(repo_root):
         "http://127.0.0.1:8000/master.m3u8",
         "--mode",
         "abr",
+        "--telemetry",
+        str(telemetry_path),
     ]
 
     return subprocess.Popen(
@@ -78,6 +81,15 @@ def main():
 
     repo_root = Path(__file__).resolve().parents[1]
 
+    telemetry_directory = repo_root / "telemetry" / "runs"
+    telemetry_directory.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    telemetry_path = (
+        telemetry_directory
+        / f"{scenario['name']}_{timestamp}.jsonl"
+    )
+
     print(f"Scenario: {scenario['name']}")
 
     # Ask for sudo authentication before timing begins.
@@ -86,7 +98,7 @@ def main():
     player = None
 
     try:
-        player = start_player(repo_root)
+        player = start_player(repo_root, telemetry_path)
 
         for index, step in enumerate(scenario["steps"]):
             bandwidth = step["bandwidth_mbps"]
