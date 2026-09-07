@@ -119,7 +119,20 @@ def main():
             )
 
             apply_bandwidth(bandwidth)
-            time.sleep(duration)
+
+            step_end = time.monotonic() + duration
+
+            while time.monotonic() < step_end:
+                return_code = player.poll()
+
+                if return_code is not None:
+                    print(
+                        f"StreamScope exited early "
+                        f"with code {return_code}"
+                    )
+                    return return_code
+
+                time.sleep(0.25)
 
         print("Waiting for StreamScope to finish...")
 
