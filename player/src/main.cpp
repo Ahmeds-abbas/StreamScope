@@ -1,6 +1,8 @@
 #include <gst/gst.h>
+#include <chrono>
 #include <iostream>
 #include <string>
+#include <thread>
 #include "streamscope/abr_selector.hpp"
 #include "streamscope/buffer_model.hpp"
 #include "streamscope/hls_manifest.hpp"
@@ -173,12 +175,50 @@ int main(int argc, char* argv[])
         ",\"state\":\"Buffering\"}"
     );
 
+    constexpr double kMaxBufferSeconds = 12.0;
     double latestThroughputMbps = 0.0;
+    gint64 previousPosition = 0;
 
     for (std::size_t segmentIndex = 0;
          segmentIndex < segmentCount;
          ++segmentIndex)
     {
+        while (buffer.level() >= kMaxBufferSeconds)
+        {
+            gint64 currentPosition = = = 0;
+
+            if (gst_element_query_position(
+                    pipeline,
+                    GST_FORMAT_TIME,
+                    &currentPosition))
+            {
+                const double deltaSeconds =
+                    static_cast<double>(
+                        currentPosition - previousPosition
+                    ) / GST_SECOND;
+
+                if (deltaSeconds > 0.0)
+                {
+                    buffer.consume(deltaSeconds);
+
+                    telemetry.writeEvent(
+                        "{\"event\":\"buffer_level\","
+                        "\"timestamp_ms\":" +
+                        std::to_string(telemetry.timestampMs()) +
+                        ",\"seconds\":" +
+                        std::to_string(buffer.level()) +
+                        "}"
+                    );
+
+                    previousPosition = currentPosition;
+                }
+            }
+
+            std::this_thread::sleep_for(
+                std::chrono::milliseconds(250)
+            );
+        }
+
         const Representation* selectedRepresentation = nullptr;
 
         if (mode == "fixed")
@@ -401,7 +441,6 @@ int main(int argc, char* argv[])
 
     GstBus* appBus = gst_element_get_bus(pipeline);
 
-    gint64 previousPosition = 0;
     GstMessage* appMessage = nullptr;
 
     while (true)
