@@ -7,5 +7,6 @@
 const Representation* selectRepresentation(
     const std::vector<Representation>& representations,
     double throughputMbps,
+    double bufferSeconds,
     double safetyFactor = 0.80
 );

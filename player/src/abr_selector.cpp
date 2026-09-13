@@ -3,6 +3,7 @@
 const Representation* selectRepresentation(
     const std::vector<Representation>& representations,
     double throughputMbps,
+    double bufferSeconds,
     double safetyFactor
 )
 {
@@ -11,8 +12,19 @@ const Representation* selectRepresentation(
         return nullptr;
     }
 
+    double bufferFactor = 1.0;
+
+    if (bufferSeconds < 8.0)
+    {
+        bufferFactor = 0.5;
+    }
+    else if (bufferSeconds < 20.0)
+    {
+        bufferFactor = 0.75;
+    }
+
     const double safeThroughputBps =
-        throughputMbps * 1'000'000.0 * safetyFactor;
+        throughputMbps * 1'000'000.0 * safetyFactor * bufferFactor;
 
     const Representation* lowest = &representations.front();
     const Representation* selected = nullptr;

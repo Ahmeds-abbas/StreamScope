@@ -13,7 +13,7 @@ TEST(AbrSelectorTest, SelectsHighestSafeRepresentation)
     };
 
     const Representation* selected =
-        selectRepresentation(representations, 5.0);
+        selectRepresentation(representations, 5.0, 20.0);
 
     ASSERT_NE(selected, nullptr);
     EXPECT_EQ(selected->height, 720);
@@ -28,7 +28,7 @@ TEST(AbrSelectorTest, FallsBackToLowestRepresentation)
     };
 
     const Representation* selected =
-        selectRepresentation(representations, 0.5);
+        selectRepresentation(representations, 0.5, 0.0);
 
     ASSERT_NE(selected, nullptr);
     EXPECT_EQ(selected->height, 360);
@@ -43,7 +43,7 @@ TEST(AbrSelectorTest, SelectsHighestRepresentationWhenBandwidthIsHigh)
     };
 
     const Representation* selected =
-        selectRepresentation(representations, 20.0);
+        selectRepresentation(representations, 20.0, 0.0);
 
     ASSERT_NE(selected, nullptr);
     EXPECT_EQ(selected->height, 1080);
@@ -54,7 +54,7 @@ TEST(AbrSelectorTest, ReturnsNullForNoRepresentations)
     std::vector<Representation> representations;
 
     EXPECT_EQ(
-        selectRepresentation(representations, 5.0),
+        selectRepresentation(representations, 5.0, 0.0),
         nullptr
     );
 }

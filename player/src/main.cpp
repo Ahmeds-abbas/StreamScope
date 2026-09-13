@@ -185,7 +185,7 @@ int main(int argc, char* argv[])
     {
         while (buffer.level() >= kMaxBufferSeconds)
         {
-            gint64 currentPosition = = = 0;
+            gint64 currentPosition = 0;
 
             if (gst_element_query_position(
                     pipeline,
@@ -250,10 +250,11 @@ int main(int argc, char* argv[])
             else
             {
                 selectedRepresentation =
-                    selectRepresentation(
-                        representations,
-                        latestThroughputMbps
-                    );
+                selectRepresentation(
+                    representations,
+                    latestThroughputMbps,
+                    buffer.level()
+                );
             }
         }
 
