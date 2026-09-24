@@ -10,6 +10,17 @@ TEST(RetryPolicyTest, DoesNotRetryNotFound)
     EXPECT_FALSE(isRetryableDownloadFailure(result));
 }
 
+TEST(RetryPolicyTest, DoesNotRetryPermanentClientErrors)
+{
+    for (const long status : {400L, 401L, 403L})
+    {
+        DownloadResult result;
+        result.httpStatus = status;
+
+        EXPECT_FALSE(isRetryableDownloadFailure(result));
+    }
+}
+
 TEST(RetryPolicyTest, RetriesInternalServerError)
 {
     DownloadResult result;
