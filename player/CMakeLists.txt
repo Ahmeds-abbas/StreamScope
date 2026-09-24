@@ -55,7 +55,7 @@ target_compile_options(
         -Wpedantic
 )
 
-find_package(GTest CONFIG REQUIRED)
+find_package(GTest REQUIRED)
 
 add_executable(streamscope_tests
     tests/buffer_model_test.cpp
