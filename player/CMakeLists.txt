@@ -31,6 +31,7 @@ add_executable(streamscope_player
     src/telemetry_writer.cpp
     src/throughput_estimator.cpp
     src/abr_selector.cpp
+    src/retry_policy.cpp
 )
 
 target_include_directories(
@@ -63,11 +64,13 @@ add_executable(streamscope_tests
     tests/telemetry_writer_test.cpp
     tests/throughput_estimator_test.cpp
     tests/abr_selector_test.cpp
+    tests/retry_policy_test.cpp
     src/buffer_model.cpp
     src/playback_state.cpp
     src/telemetry_writer.cpp
     src/throughput_estimator.cpp
     src/abr_selector.cpp
+    src/retry_policy.cpp
 )
 
 target_include_directories(streamscope_tests

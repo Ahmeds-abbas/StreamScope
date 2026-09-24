@@ -7,6 +7,7 @@
 #include "streamscope/buffer_model.hpp"
 #include "streamscope/hls_manifest.hpp"
 #include "streamscope/playback_state.hpp"
+#include "streamscope/retry_policy.hpp"
 #include "streamscope/telemetry_writer.hpp"
 #include "streamscope/throughput_estimator.hpp"
 #include "streamscope/http_downloader.hpp"
@@ -176,6 +177,7 @@ int main(int argc, char* argv[])
     );
 
     constexpr double kMaxBufferSeconds = 12.0;
+    constexpr int kMaxDownloadAttempts = 3;
     double latestThroughputMbps = 0.0;
     gint64 previousPosition = 0;
 
@@ -317,17 +319,61 @@ int main(int argc, char* argv[])
 
         std::cout << "Downloading: " << segmentUrl << '\n';
 
-        telemetry.writeEvent(
-            "{\"event\":\"segment_download_started\","
-            "\"timestamp_ms\":" +
-            std::to_string(telemetry.timestampMs()) +
-            ",\"sequence\":" +
-            std::to_string(segment.sequence) +
-            "}"
-        );
+        DownloadResult downloadResult;
+        int downloadAttempt = 0;
 
-        DownloadResult downloadResult =
-            downloadUrl(segmentUrl);
+        for (downloadAttempt = 1;
+             downloadAttempt <= kMaxDownloadAttempts;
+             ++downloadAttempt)
+        {
+            telemetry.writeEvent(
+                "{\"event\":\"segment_download_started\","
+                "\"timestamp_ms\":" +
+                std::to_string(telemetry.timestampMs()) +
+                ",\"sequence\":" +
+                std::to_string(segment.sequence) +
+                ",\"attempt\":" +
+                std::to_string(downloadAttempt) +
+                "}"
+            );
+
+            downloadResult = downloadUrl(segmentUrl);
+
+            if (downloadResult.success)
+            {
+                break;
+            }
+
+            if (downloadAttempt == kMaxDownloadAttempts ||
+                !isRetryableDownloadFailure(downloadResult))
+            {
+                break;
+            }
+
+            const int backoffMilliseconds =
+                downloadAttempt * 250;
+
+            telemetry.writeEvent(
+                "{\"event\":\"segment_retry_scheduled\","
+                "\"timestamp_ms\":" +
+                std::to_string(telemetry.timestampMs()) +
+                ",\"sequence\":" +
+                std::to_string(segment.sequence) +
+                ",\"failed_attempt\":" +
+                std::to_string(downloadAttempt) +
+                ",\"next_attempt\":" +
+                std::to_string(downloadAttempt + 1) +
+                ",\"backoff_ms\":" +
+                std::to_string(backoffMilliseconds) +
+                ",\"http_status\":" +
+                std::to_string(downloadResult.httpStatus) +
+                "}"
+            );
+
+            std::this_thread::sleep_for(
+                std::chrono::milliseconds(backoffMilliseconds)
+            );
+        }
 
         if (!downloadResult.success)
         {
@@ -337,6 +383,8 @@ int main(int argc, char* argv[])
                 std::to_string(telemetry.timestampMs()) +
                 ",\"sequence\":" +
                 std::to_string(segment.sequence) +
+                ",\"attempts\":" +
+                std::to_string(downloadAttempt) +
                 ",\"http_status\":" +
                 std::to_string(downloadResult.httpStatus) +
                 "}"
@@ -379,6 +427,8 @@ int main(int argc, char* argv[])
             std::to_string(telemetry.timestampMs()) +
             ",\"sequence\":" +
             std::to_string(segment.sequence) +
+            ",\"attempt\":" +
+            std::to_string(downloadAttempt) +
             ",\"http_status\":" +
             std::to_string(downloadResult.httpStatus) +
             ",\"bytes\":" +
